@@ -55,7 +55,7 @@ COPY priv priv
 
 COPY lib lib
 
-RUN if [ -d .git ]; then mix sentry.package_source_code; fi
+COPY .git .git
 
 COPY assets assets
 
