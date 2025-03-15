@@ -78,7 +78,7 @@ ENV RELEASE_VERSION=${RELEASE_VERSION}
 RUN mix compile
 
 # Ensure stacktraces we send to Sentry are complete
-RUN mix sentry.package_source_code
+RUN if [ -d .git ]; then mix sentry.package_source_code; else echo "Skipping Sentry packaging"; fi
 
 # Changes to config/runtime.exs don't require recompiling the code
 COPY config/runtime.exs config/
