@@ -16,18 +16,18 @@ FROM ${BUILDER_IMAGE} AS builder
 ARG SELF_HOSTED
 ENV SELF_HOSTED=${SELF_HOSTED}
 
-# Pass through SENTRY_DSN to the build environment
-ARG SENTRY_DSN
-ENV SENTRY_DSN=${SENTRY_DSN}
+# Removed SENTRY_DSN arguments and environment variables
+# ARG SENTRY_DSN
+# ENV SENTRY_DSN=${SENTRY_DSN}
 
-# install build dependencies
+# Install build dependencies
 RUN apt-get update -y && apt-get install -y build-essential git curl \
     && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
-# install nodejs for build stage
+# Install Node.js for build stage
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs
 
-# prepare build dir
+# Prepare build directory
 RUN mkdir /app
 WORKDIR /app
 
@@ -40,45 +40,41 @@ ENV MIX_ENV="prod"
 ENV LANG=C.UTF-8
 ENV ERL_FLAGS="+JPperf true"
 
-# install mix dependencies
+# Install mix dependencies
 COPY mix.exs mix.lock ./
 RUN mix deps.get --only $MIX_ENV
 RUN mkdir config
 
-# copy compile-time config files before we compile dependencies
-# to ensure any relevant config change will trigger the dependencies
-# to be re-compiled.
+# Copy compile-time config files
 COPY config/config.exs config/${MIX_ENV}.exs config/
 RUN mix deps.compile
 
 COPY priv priv
-
 COPY lib lib
 
+# Copy Git metadata (if needed elsewhere) and assets
 COPY .git .git
-
 COPY assets assets
 
-# install all npm packages in assets directory
+# Install all npm packages in assets directory
 WORKDIR /app/assets
 RUN npm install
 
-# change back to build dir
+# Change back to build dir
 WORKDIR /app
 
-# compile assets
+# Compile assets
 RUN mix assets.deploy
 
 # Pass through RELEASE_VERSION to the build environment
-# Do this as late as possible, because it changes on ~every build
 ARG RELEASE_VERSION
 ENV RELEASE_VERSION=${RELEASE_VERSION}
 
 # Compile the release
 RUN mix compile
 
-# Ensure stacktraces we send to Sentry are complete
-RUN if [ -d .git ]; then mix sentry.package_source_code; else echo "Skipping Sentry packaging"; fi
+# Removed Sentry packaging command
+# RUN mix sentry.package_source_code
 
 # Changes to config/runtime.exs don't require recompiling the code
 COPY config/runtime.exs config/
@@ -86,13 +82,10 @@ COPY config/runtime.exs config/
 COPY rel rel
 RUN mix release
 
-# start a new build stage so that the final image will only contain
-# the compiled release and other runtime necessities
 # ---- App Stage ----
 FROM ${RUNNER_IMAGE} AS app
 
 # Install additional packages
-# Do this before setting RELEASE_VERSION which changes on every build
 RUN apt-get update -y && \
     apt-get install -y libstdc++6 openssl libncurses5 locales ca-certificates curl ssh jq telnet netcat htop \
     && apt-get clean && rm -f /var/lib/apt/lists/*_*
@@ -105,15 +98,13 @@ ENV SELF_HOSTED=${SELF_HOSTED}
 ARG RELEASE_VERSION
 ENV RELEASE_VERSION=${RELEASE_VERSION}
 
-
 # Set the locale
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
-
 ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 
-# Copy over the build artifact from the previous step and create a non root user
+# Copy over the build artifact from the previous step and create a non-root user
 RUN useradd --create-home app
 WORKDIR /home/app
 COPY --from=builder --chown=app /app/_build .
@@ -128,5 +119,5 @@ USER app
 # Make port 4000 available to the world outside this container
 EXPOSE 4000
 
-# run the start-up script which run migrations and then the app
+# Run the start-up script which runs migrations and then the app
 ENTRYPOINT ["/scripts/start_commands.sh"]
