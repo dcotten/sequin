@@ -55,6 +55,8 @@ COPY priv priv
 
 COPY lib lib
 
+RUN if [ -d .git ]; then mix sentry.package_source_code; fi
+
 COPY assets assets
 
 # install all npm packages in assets directory
